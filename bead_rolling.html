@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>轉珠洨幫手</title>
+    <script
+  src="https://code.jquery.com/jquery-3.4.1.slim.min.js"
+  integrity="sha256-pasqAKBDmFT4eHoN2ndd6lN370kFiGUFyTiUHWhU7k8="
+  crossorigin="anonymous"></script>
+</head>
+<style>
+    body{
+        width: 100vw;
+        height: 90vh;
+        margin:15px 0 0 0;
+        padding: 0;
+        overflow: hidden;
+    }
+#data_bar{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    z-index: 99;
+    background-color: azure;
+    height: auto;
+    text-align: center;
+    padding: 40px 0;
+}
+#data_bar>div{display: inline-block;vertical-align:middle;width: calc(90% / 6);text-align: left;border: 1px solid #000;}
+#data_bar>div>p>span{display: inline-block;vertical-align:middle;}
+#d_blue>:first-child,#d_red>:first-child,#d_green>:first-child,#d_yellow>:first-child,#d_purple>:first-child{
+    text-align: center;font-weight: bold;letter-spacing: 0.6em;
+}
+#d_blue>:first-child{color: #82c4f5;}
+#d_red>:first-child{color: #FF0000;}
+#d_green>:first-child{color: #00FF00;}
+#d_yellow>:first-child{color: orange;}
+#d_purple>:first-child{color: #8000FF;}
+@media screen and (max-width: 500px){
+    body{
+        width: 100vw;
+        height:500px;
+        margin:15px 0 0 0;
+        padding: 0;
+        overflow: hidden;
+    }
+    #data_bar{
+        font-size: 12px;
+        padding: 0;
+    }
+    #d_blue>:first-child,#d_red>:first-child,#d_green>:first-child,#d_yellow>:first-child,#d_purple>:first-child{
+        letter-spacing: 0;
+    }
+    #data_bar>div{width: calc(90%/5);}
+    #data_bar>div:last-child{display: block;width: 100%;}
+    #data_bar>div:last-child>p:first-child{margin-left:50px; font-weight: bold;font-size: 14px;}
+    #data_bar>div:last-child>p{display: inline-block;}
+}
+</style>
+<body>
+    <canvas id="c"></canvas>
+    <div id="data_bar">
+        <div id="d_blue">
+            <p>水/藍</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+        <div id="d_red">
+            <p>火/紅</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+        <div id="d_green">
+            <p>木/綠</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+        <div id="d_yellow">
+            <p>光/黃</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+        <div id="d_purple">
+            <p>暗/紫</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+        <div id="d_all">
+            <p>總共</p>
+            <p>
+                <span>combo數:</span>
+                <span>0</span>
+            </p>
+            <p>
+                <span>共X顆:</span>
+                <span>0</span>
+            </p>
+        </div>
+    </div>
+
+<script>
+    window.requestAnimFrame =
+    window.requestAnimationFrame ||
+    window.webkitRequestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    window.oRequestAnimationFrame ||
+    window.msRequestAnimationFrame ||
+    function(callback) {
+        window.setTimeout(callback, 1000 / 60);
+    };
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// ctx.fillStyle = '#82c4f5';
+// ctx.beginPath();
+// ctx.arc(20,20, 20, 0, 2 * Math.PI);
+// ctx.fill();
+var hand_can_game=true;//--可以移動珠子
+var has_Combo=false;//-此版面 有消除珠子
+var basics={
+    'size':6,
+    'obj_size':30,
+}
+if( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ) {
+    var widths = (window.innerWidth > 0) ? window.innerWidth : screen.width;
+    widths=widths/(basics['size']*3+1);
+    basics['obj_size']=widths;
+    canvas.height =360;
+    //alert(window.innerHeight);    
+
+}
+var colors=['#82c4f5','#FF0000','#00FF00','#FFEA00','#8000FF','#ffffff'];
+var selected_ctn=-1;
+
+var OBJS=function(x,y,stage,ctn){
+    this.pos_ctn=ctn;//--珠子排序位
+    this.stage=stage;//--珠子種類
+    this.isSelect=false;//--是否是轉朱起始珠
+    this.x=x;//--渲染時x
+    this.y=y;//--渲染時y    
+    this.s_posx=x;//-版面固定x
+    this.s_posy=y;//-版面固定y    
+    this.next_pos_ctn=-1;//-是diss朱時 我的下一個ctn
+}
+var Controlls=function(){
+    this.planes=[];
+    this.planes_count=basics['size']*basics['size'];
+    for(var i=0;i<this.planes_count;i++){//--初始化板塊
+        var m1=parseInt(i/basics['size']);//取商數
+        var m2=Math.round(i%basics['size']);//取餘數
+        var x=basics['obj_size']+basics['obj_size']*m2*3;
+        var y=basics['obj_size']+basics['obj_size']*m1*3;
+        var color_r=parseInt(Math.random()*5);        
+        ctx.fillStyle = colors[color_r];
+        ctx.beginPath();
+        ctx.arc(x, y, basics['obj_size'], 0, 2 * Math.PI);
+        ctx.fill();
+        this.planes.push(new OBJS(x,y,color_r,i));
+    }
+}
+Controlls.prototype.update = function() {
+        //console.log(this.planes);
+        for(var i=0;i<this.planes_count;i++){//--重新渲染            
+            var xx=this.planes[i].x;
+            var yy=this.planes[i].y;                    
+            ctx.fillStyle = colors[this.planes[i].stage];
+            ctx.beginPath();
+            ctx.arc(xx, yy,basics['obj_size'], 0, 2 * Math.PI);
+            ctx.fill();   
+        }
+}
+var cc=new Controlls;
+canvas.onmousedown = function(event){//--選擇 珠子
+    if(hand_can_game){
+        var MX=event.clientX;
+        var MY=event.clientY;        
+        for(var i=0;i<cc.planes_count;i++){            
+            var x=cc.planes[i].x;
+            var y=cc.planes[i].y;        
+            var a=MX-x;
+            var b=MY-y;
+            var c=Math.sqrt(a*a+b*b);            
+            if(c<=basics['obj_size']){//--在範圍內
+                cc.planes[i].isSelect=true;
+                selected_ctn=i;
+                data_bar_reset();                         
+            }            
+        }
+    }
+};
+canvas.onmouseup = function(event){//--結束轉朱
+    if(selected_ctn!=-1){
+        cc.planes[selected_ctn].isSelect=false;
+        cc.planes[selected_ctn].x=cc.planes[selected_ctn].s_posx;
+        cc.planes[selected_ctn].y=cc.planes[selected_ctn].s_posy;
+        selected_ctn=-1;
+        Judge_combo();
+        hand_can_game=false;
+    }
+}
+canvas.onmousemove = function(event){//--轉朱移動
+    var MX=event.clientX;
+    var MY=event.clientY;
+    for(var i=0;i<cc.planes_count;i++){            
+        if(cc.planes[i].isSelect){
+            cc.planes[i].x=MX;
+            cc.planes[i].y=MY;         
+        }        
+    }
+    Judge_roll(MX.MY);
+}
+/*Mobile*/
+canvas.ontouchstart = function(event){//--選擇 珠子    
+    //console.log(event['targetTouches'][0]['clientX']);
+    if(hand_can_game){
+        var MX=event['targetTouches'][0]['clientX'];
+        var MY=event['targetTouches'][0]['clientY'];        
+        for(var i=0;i<cc.planes_count;i++){            
+            var x=cc.planes[i].x;
+            var y=cc.planes[i].y;        
+            var a=MX-x;
+            var b=MY-y;
+            var c=Math.sqrt(a*a+b*b);    
+            if(c<=basics['obj_size']){//--在範圍內
+                cc.planes[i].isSelect=true;
+                selected_ctn=i;
+                data_bar_reset();                         
+            }            
+        }
+    }
+};
+canvas.ontouchend = function(event){//--結束轉朱
+    if(selected_ctn!=-1){
+        cc.planes[selected_ctn].isSelect=false;
+        cc.planes[selected_ctn].x=cc.planes[selected_ctn].s_posx;
+        cc.planes[selected_ctn].y=cc.planes[selected_ctn].s_posy;
+        selected_ctn=-1;
+        Judge_combo();
+        hand_can_game=false;
+    }
+}
+canvas.ontouchmove = function(event){//--轉朱移動    
+    var MX=event['targetTouches'][0]['clientX'];
+    var MY=event['targetTouches'][0]['clientY'];
+    for(var i=0;i<cc.planes_count;i++){            
+        if(cc.planes[i].isSelect){
+            cc.planes[i].x=MX;
+            cc.planes[i].y=MY;         
+        }        
+    }
+    Judge_roll(MX.MY);
+}
+/*Mobile*/
+
+function Judge_roll(xx,yy){//--判斷轉朱
+    for(var i=0;i<cc.planes_count;i++){            
+        if(i!=selected_ctn&&selected_ctn!=-1){
+                var x=cc.planes[i].x;
+                var y=cc.planes[i].y;
+                var MX=cc.planes[selected_ctn].x;
+                var MY=cc.planes[selected_ctn].y;                
+                var a=MX-x;
+                var b=MY-y;
+                var c=Math.sqrt(a*a+b*b);            
+                if(c<=basics['obj_size']){//--起始珠 碰到該珠子
+                    var OR_ctn=cc.planes[i].pos_ctn;
+                    cc.planes[i].pos_ctn=cc.planes[selected_ctn].pos_ctn;
+                    cc.planes[selected_ctn].pos_ctn=OR_ctn;//--珠子排序互換
+                    cc.planes[i].x=cc.planes[selected_ctn].s_posx;
+                    cc.planes[i].s_posx=cc.planes[selected_ctn].s_posx;
+                    cc.planes[i].y=cc.planes[selected_ctn].s_posy;
+                    cc.planes[i].s_posy=cc.planes[selected_ctn].s_posy;
+                    cc.planes[selected_ctn].s_posx=x;
+                    cc.planes[selected_ctn].s_posy=y;//--珠子x,y,orx.ory互換
+                }
+        }
+    }
+}
+function Judge_combo(){//--判斷消除 珠子
+    var blue=[];
+    var red=[];
+    var green=[];
+    var yellow=[];
+    var purple=[];
+    var diss_nbs=[];
+    cc.planes.sort(function(a,b){
+        return a.pos_ctn > b.pos_ctn ?1:-1;
+    });    
+    for(var i=0;i<cc.planes.length;i++){
+        switch(cc.planes[i].stage){
+            case 0:            
+                blue.push(cc.planes[i].pos_ctn);
+                break;
+            case 1:
+                red.push(cc.planes[i].pos_ctn);
+                break;
+            case 2:
+                green.push(cc.planes[i].pos_ctn);    
+                break;
+            case 3:
+                yellow.push(cc.planes[i].pos_ctn);    
+                break;
+            case 4:
+                purple.push(cc.planes[i].pos_ctn);
+                break;
+        }        
+    }
+    blue=Judge_combo_data(blue);
+    red=Judge_combo_data(red);
+    green=Judge_combo_data(green);
+    yellow=Judge_combo_data(yellow);
+    purple=Judge_combo_data(purple);    
+    diss_nbs.push(blue);
+    diss_nbs.push(red);
+    diss_nbs.push(green);
+    diss_nbs.push(yellow);
+    diss_nbs.push(purple);
+    var single_all_diss=[];
+    for(var i=0;i<diss_nbs.length;i++){//顏色combo群組
+        for(var s=0;s<diss_nbs[i].length;s++){//--combo群組
+            for(var a=0;a<diss_nbs[i][s].length;a++){//--個別代碼
+                single_all_diss.push(diss_nbs[i][s][a]);
+            }
+        }
+    }
+    single_all_diss.sort(function(z, x) {return z - x;});//--排序小->大      
+    print_combo(blue,red,green,yellow,purple,single_all_diss);
+    if(single_all_diss.length==0){has_Combo=false;}
+    else{has_Combo=true;}
+    do_diss_bead(single_all_diss);
+    //console.log(single_all_diss);
+    
+}
+function Judge_combo_data(arr){//--判斷消除 珠子
+    var this_arr=arr;
+    var my_diss_connect=[];//全部珠子 判別 相連的(很多個會重複)
+    for(var i=0;i<this_arr.length;i++){
+        if(this_arr[i]==null)continue;
+        else{
+            var m1=parseInt(this_arr[i]/basics['size']);//取商數
+            var m2=Math.round(this_arr[i]%basics['size']);//取餘數            
+            if(m1<4&&m2<4){//--往右算&往下算
+                var tt=Run_Row(this_arr[i],this_arr);
+                var ttt=Run_Ver(this_arr[i],this_arr);
+                if(tt!=false&&ttt!=false){my_diss_connect.push(merge_array(tt,ttt));}
+                else if(tt==false&&ttt!=false){my_diss_connect.push(ttt);}
+                else if(tt!=false&&ttt==false){my_diss_connect.push(tt);}
+            }else if(m1<4&&m2>3){//-只往下算
+                var tt=Run_Ver(this_arr[i],this_arr);
+                if(tt!=false)my_diss_connect.push(tt);
+            }else if(m1>3&&m2<4){//--只往右算
+                var tt=Run_Row(this_arr[i],this_arr);
+                if(tt!=false)my_diss_connect.push(tt);
+            }                                    
+        }        
+    }    
+    var combo_array=Judge_include(my_diss_connect);//--分類好(待定) 
+    return combo_array;       
+}
+function Run_Row(nb,arr){//-判斷3個或以上相連 往右(橫排)
+    var Re=[];
+    var m1=parseInt(nb/basics['size']);//取商數/**
+    var m2=Math.round(nb%basics['size']);//取餘數
+    for(var i=nb;i<m1*basics['size']+basics['size'];i++){
+        if(arr.includes(i))Re.push(i);
+        else{break;}
+    }
+    if(Re.length>=3)return Re;
+    else{return false;}
+}
+function Run_Ver(nb,arr){//-判斷3個或以上相連 往下(直排)
+    var Re=[];
+    var m1=parseInt(nb/basics['size']);//取商數/**
+    var m2=Math.round(nb%basics['size']);//取餘數
+    var cct=basics['size']*basics['size']-basics['size']+m2+1;
+    for(var i=nb;i<cct;i=i+basics['size']){
+        if(arr.includes(i))Re.push(i);
+        else{break;}
+    }
+    if(Re.length>=3)return Re;
+    else{return false;}
+}
+function Judge_include(arr){//--判斷陣列是否 有相同元素(第1次運算) 判斷總控
+    if(arr.length>1){
+        var hasCombine=false;
+        var out=[arr[0]];
+        for(var i=0;i<arr.length;i++){
+            var isbreak=false;
+            for(var s=0;s<arr[i].length;s++){//--for 單獨元素                          
+                if(isbreak)break;
+                for(var a=0;a<out.length;a++){//--for 輸出arr
+                    if(out[a].includes(arr[i][s])){//--有相同的元素->合併 
+                        out[a]=merge_array(out[a],arr[i]);
+                        out[a].sort(function(z, x) {return z - x;});//--排序小->大  
+                        hasCombine=true;
+                        isbreak=true;
+                        break;
+                    }else if(a==out.length-1&&s==arr[i].length-1){//--沒有相同 (最後一個元素 以及 最後一組消除 判斷完)
+                        arr[i].sort(function(z, x) {return z - x;});//--排序小->大  
+                        out.push(arr[i]);
+                    }
+                }
+            }
+        }
+        if(hasCombine){
+            out=Judge_include_cop(out);//--算第2次 可能有漏算
+        }
+        //console.log(out);
+        out=Judge_include_6inrow(out);//--判斷 2橫/豎相鄰
+        return out;
+    }else{
+        return arr;
+    }
+}
+function Judge_include_6inrow(arr){//--判斷2列/2豎 相鄰合成一組 (橫/直)
+    if(arr.length>1){
+        var hasCombine=false;
+        var out=[arr[0]];
+        var pre_back_array=[];
+        for(var i=0;i<arr.length;i++){
+            var kind=-1;            
+            var judge_1=-1;
+            var judge_2=-1;
+            var isbreak=false;
+            for(var s=0;s<arr[i].length;s++){//--for 單獨元素
+                if(isbreak)break;
+                //arr[i].sort(function(z, x) {return z - x;});
+                if(s==0){
+                    var m1=parseInt(arr[i][s]/basics['size']);//取商數/**
+                    var m2=Math.round(arr[i][s]%basics['size']);//取餘數
+                    var row_nb=arr[i][s]+1;
+                    var ver_nb=arr[i][s]+basics['size'];                    
+                    if(arr[i].includes(row_nb)&&arr[i].includes(ver_nb)==false){//-只有橫 沒有垂直
+                        if(m1==0){//-最上
+                            kind=0;
+                            judge_1=arr[i][s]+basics['size'];
+                        }else if(m1==basics['size']-1){//--最下
+                            kind=1;
+                            judge_1=arr[i][s]-basics['size'];
+                        }else{//-中間
+                            kind=2;
+                            judge_1=arr[i][s]-basics['size'];
+                            judge_2=arr[i][s]+basics['size'];
+                        }
+                    }else if(arr[i].includes(row_nb)==false&&arr[i].includes(ver_nb)){//-只有垂直 沒有橫
+                        if(m2==0){//-最左
+                            kind=3;
+                            judge_1=arr[i][s]+1;
+                        }else if(m2==basics['size']-1){//--最右
+                            kind=4;
+                            judge_1=arr[i][s]-1;
+                        }else{//-中間
+                            kind=5;
+                            judge_1=arr[i][s]+1;
+                            judge_2=arr[i][s]-1;
+                        }
+                    }else{//--有 橫&豎
+                        /*out.push(arr[i]);*/
+                        pre_back_array.push(arr[i]);
+                        isbreak=true;
+                        break;
+                    }
+                }else{//--(除了第一個)其他個別元素 增加到預判陣列
+                    switch(kind){
+                    case 0:            
+                        judge_1=arr[i][s]+basics['size'];
+                        break;
+                    case 1:
+                        judge_1=arr[i][s]-basics['size'];
+                        break;
+                    case 2:
+                        judge_1=arr[i][s]-basics['size'];
+                        judge_2=arr[i][s]+basics['size'];
+                        break;
+                    case 3:
+                        judge_1=arr[i][s]+1;
+                        break;
+                    case 4:
+                        judge_1=arr[i][s]-1;
+                        break;
+                    case 5:
+                        judge_1=arr[i][s]+1;
+                        judge_2=arr[i][s]-1;
+                        break;
+                    }
+                }    
+                for(var a=0;a<out.length;a++){//--for 輸出arr
+                    if(out[a].includes(arr[i])&&arr[i].includes(out[a])){
+                        continue;
+                    }else{
+                        if(kind==2||kind==5){                            
+                            if(out[a].includes(judge_1)||out[a].includes(judge_2)){//--有相同的元素->合併
+                                out[a]=merge_array(out[a],arr[i]);
+                                isbreak=true;
+                                break;
+                            }else if(a==out.length-1&&s==arr[i].length-1){//--沒有相同                            
+                                out.push(arr[i]);
+                                isbreak=true;
+                                break;
+                            }                         
+                        }else if(kind!=-1){                            
+                            if(out[a].includes(judge_1)){
+                                out[a]=merge_array(out[a],arr[i]);
+                                isbreak=true;
+                                break;
+                            }else if(a==out.length-1&&s==arr[i].length-1){//--沒有相同                            
+                                out.push(arr[i]);
+                                isbreak=true;
+                                break;
+                            }                         
+                        }                    
+                    }
+                    
+                }//-for a                                        
+            }//-for s            
+        }//-for i
+        for(var i=0;i<pre_back_array.length;i++){//--把原本 有橫豎的陣列 加回輸出檔
+            out.push(pre_back_array[i]);
+        }        
+        out=Judge_include_cop(out);//--相同的再次拿掉
+        return out;
+    }else{
+        return arr;
+    }
+}
+function Judge_include_cop(arr){//--判斷陣列是否 有相同元素(第2次運算)
+    if(arr.length>1){
+        var hasCombine=false;
+        var out=[arr[0]];
+        for(var i=0;i<arr.length;i++){
+            var isbreak=false;
+            for(var s=0;s<arr[i].length;s++){//--for 單獨元素          
+                if(isbreak)break;
+                for(var a=0;a<out.length;a++){//--for 輸出arr
+                    if(out[a].includes(arr[i][s])){//--有相同的元素->合併 
+                        out[a]=merge_array(out[a],arr[i]);
+                        hasCombine=true;
+                        isbreak=true;
+                        break;
+                    }else if(a==out.length-1&&s==arr[i].length-1){//--沒有相同 (最後一個元素 以及 最後一組消除 判斷完)
+                        out.push(arr[i]);
+                    }
+                }
+            }
+        }        
+        return out;
+    }else{
+        return arr;
+    }
+
+}
+function do_diss_bead(arr){//--改變要 diss珠子屬性 & 消除朱->重新給位子.屬性
+    for(var i=0;i<arr.length;i++){
+        for(var s=0;s<cc.planes.length;s++){
+            if(cc.planes[s].pos_ctn==arr[i]){
+                cc.planes[s].stage=parseInt(Math.random()*5);//--重新隨機給值                
+                var my_row_diss_ctn=1;//-這一豎 總共diss幾顆
+                var my_upY_pos=0;//-重生Y值要*的值
+                var my_m2=Math.round(arr[i]%basics['size']);//取餘數
+                for(var a=0;a<arr.length;a++){                    
+                    var m2=Math.round(arr[a]%basics['size']);//取餘數
+                    if(m2==my_m2&&arr[i]!=arr[a]){//--餘數相同->同一排
+                        my_row_diss_ctn++;
+                        if(arr[i]>arr[a])my_upY_pos++;
+                    }
+                }//--for a end
+                cc.planes[s].y=basics['obj_size']*-1-basics['obj_size']*3*(my_row_diss_ctn-my_upY_pos-1);
+                cc.planes[s].s_posy=basics['obj_size']+basics['obj_size']*3*my_upY_pos;                
+                cc.planes[s].next_pos_ctn=(my_upY_pos)*basics['size']+my_m2;//--珠子排序位
+            }//-if end
+        }//-for s end
+    }//-for i end    
+    setTimeout(function(){do_bead_fall_data(arr);},300);
+}
+function do_bead_fall_data(arr){//--珠子 掉落/往下方移動+天降
+    for(var i=0;i<cc.planes.length;i++){//-非這輪diss珠子 判斷有沒有要往下掉落
+        if(cc.planes[i].next_pos_ctn==-1){//--非這輪diss珠子
+            var my_m2=Math.round(cc.planes[i].pos_ctn%basics['size']);//取餘數
+            var m1=parseInt(cc.planes[i].pos_ctn/basics['size']);//取商數
+            var my_Ymove=0;
+            for(var s=0;s<arr.length;s++){
+                var m2=Math.round(arr[s]%basics['size']);//取餘數
+                if(m2==my_m2&&cc.planes[i].pos_ctn<arr[s])my_Ymove++;                
+            }
+            if(my_Ymove>0){
+                cc.planes[i].s_posy=basics['obj_size']+basics['obj_size']*3*(my_Ymove+m1);
+                cc.planes[i].next_pos_ctn=my_Ymove*basics['size']+cc.planes[i].pos_ctn;//--珠子排序位
+            }
+        }//-if end     
+    }//-for i end
+    setTimeout(do_bead_fall,10);
+}
+function do_bead_fall(){//--往下掉落
+    var fall_again=false;
+    for(var i=0;i<cc.planes.length;i++){
+        if(cc.planes[i].next_pos_ctn!=-1){
+            if(cc.planes[i].y<cc.planes[i].s_posy){//-還沒掉到位
+                cc.planes[i].y=cc.planes[i].y+basics['size'];
+                fall_again=true;
+                //if(cc.planes[i].y<cc.planes[i].s_posy)fall_again=true;
+            }else{//-已經掉到預定位子
+                cc.planes[i].pos_ctn=cc.planes[i].next_pos_ctn;
+                cc.planes[i].next_pos_ctn=-1;
+            }
+        }
+    }
+    if(fall_again)setTimeout(do_bead_fall,10);
+    else if(has_Combo){
+        cc.planes.sort(function(a,b){
+            return a.pos_ctn > b.pos_ctn ?1:-1;
+        });
+        Judge_combo();//-天將後重新判斷 消朱
+    }else if(has_Combo==false){
+        hand_can_game=true;//--恢復 可轉朱
+    }   
+}
+function print_combo(b,r,g,y,p,all){//--印出消朱 資訊
+    //$('#d_blue')
+    var b_cbs=parseInt($('#d_blue p').eq(1).find('span').eq(1).text())+b.length;
+    var r_cbs=parseInt($('#d_red p').eq(1).find('span').eq(1).text())+r.length;
+    var g_cbs=parseInt($('#d_green p').eq(1).find('span').eq(1).text())+g.length;
+    var y_cbs=parseInt($('#d_yellow p').eq(1).find('span').eq(1).text())+y.length;
+    var p_cbs=parseInt($('#d_purple p').eq(1).find('span').eq(1).text())+p.length;
+    var lll=b_cbs+r_cbs+g_cbs+y_cbs+p_cbs;
+    var b_nbs=parseInt($('#d_blue p').eq(2).find('span').eq(1).text());
+    var r_nbs=parseInt($('#d_red p').eq(2).find('span').eq(1).text());
+    var g_nbs=parseInt($('#d_green p').eq(2).find('span').eq(1).text());
+    var y_nbs=parseInt($('#d_yellow p').eq(2).find('span').eq(1).text());
+    var p_nbs=parseInt($('#d_purple p').eq(2).find('span').eq(1).text());
+    var all_nbs=parseInt($('#d_all p').eq(2).find('span').eq(1).text());
+    for(var i=0;i<b.length;i++){b_nbs=b_nbs+b[i].length;}
+    for(var i=0;i<r.length;i++){r_nbs=r_nbs+r[i].length;}
+    for(var i=0;i<g.length;i++){g_nbs=g_nbs+g[i].length;}
+    for(var i=0;i<y.length;i++){y_nbs=y_nbs+y[i].length;}
+    for(var i=0;i<p.length;i++){p_nbs=p_nbs+p[i].length;}
+    all_nbs=all_nbs+all.length;
+    $('#d_blue p').eq(1).find('span').eq(1).text(b_cbs);
+    $('#d_blue p').eq(2).find('span').eq(1).text(b_nbs);
+    $('#d_red p').eq(1).find('span').eq(1).text(r_cbs);
+    $('#d_red p').eq(2).find('span').eq(1).text(r_nbs);
+    $('#d_green p').eq(1).find('span').eq(1).text(g_cbs);
+    $('#d_green p').eq(2).find('span').eq(1).text(g_nbs);
+    $('#d_yellow p').eq(1).find('span').eq(1).text(y_cbs);
+    $('#d_yellow p').eq(2).find('span').eq(1).text(y_nbs);
+    $('#d_purple p').eq(1).find('span').eq(1).text(p_cbs);
+    $('#d_purple p').eq(2).find('span').eq(1).text(p_nbs);
+    $('#d_all p').eq(1).find('span').eq(1).text(lll);
+    $('#d_all p').eq(2).find('span').eq(1).text(all_nbs);
+    
+};
+function data_bar_reset(){
+    $('#d_blue p').eq(1).find('span').eq(1).text('0');
+    $('#d_blue p').eq(2).find('span').eq(1).text('0');
+    $('#d_red p').eq(1).find('span').eq(1).text('0');
+    $('#d_red p').eq(2).find('span').eq(1).text('0');
+    $('#d_green p').eq(1).find('span').eq(1).text('0');
+    $('#d_green p').eq(2).find('span').eq(1).text('0');
+    $('#d_yellow p').eq(1).find('span').eq(1).text('0');
+    $('#d_yellow p').eq(2).find('span').eq(1).text('0');
+    $('#d_purple p').eq(1).find('span').eq(1).text('0');
+    $('#d_purple p').eq(2).find('span').eq(1).text('0');
+    $('#d_all p').eq(1).find('span').eq(1).text('0');
+    $('#d_all p').eq(2).find('span').eq(1).text('0');
+}
+function merge_array(array1, array2) {//--2array合併 相同元素不重複
+    var result_array = [];
+    var arr = array1.concat(array2);
+    var len = arr.length;
+    var assoc = {};
+    while(len--) {
+        var item = arr[len];
+        if(!assoc[item]) 
+        { 
+            result_array.unshift(item);
+            assoc[item] = true;
+        }
+    }
+    return result_array;
+}
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    cc.update();
+    requestAnimFrame(loop);
+}
+loop();
+
+</script>
+</body>
+</html>
