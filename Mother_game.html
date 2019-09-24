@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>放格子</title>
+</head>
+<style>
+    body{
+        margin: 0;
+        padding: 0;
+    }
+#changes{
+    position: absolute;
+    right: 50px;
+    top: 50px;
+    padding: 6px 10px;
+    font-size: 36px;
+    border: none;
+    border-radius: 15px;
+}
+@media screen and (max-width: 800px){
+    #changes{
+        position: absolute;
+        right: 10px;
+        top: 5px;
+        padding: 6px 10px;
+        font-size: 32px;
+    }
+}
+@media screen and (max-width: 500px){
+    #changes{
+        font-size: 18px;
+    }
+}
+#control{
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translate(-50%,0);
+    display: none;
+}
+.saved{
+    background-color: red;
+}
+</style>
+<body>
+    <canvas id="c"></canvas>
+    <button id="changes" onclick="changes()">更換/Change plane</button>
+    <div id="control">
+        <button onclick="save(1)">Save plane</button>
+        <button onclick="save(2)">Save plane</button>
+        <button onclick="save(3)">Save plane</button>
+    </div>
+    <script>
+        window.requestAnimFrame =
+    window.requestAnimationFrame ||
+    window.webkitRequestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    window.oRequestAnimationFrame ||
+    window.msRequestAnimationFrame ||
+    function(callback) {
+        window.setTimeout(callback, 1000 / 60);
+    };
+    var canvas = document.getElementById('c');
+    var ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth-20;
+    canvas.height = window.innerHeight-5;    
+var basics={
+    'size':5,
+    'obj_size':70,
+    'row':7,
+    'op_y':0,
+    'op_x':0
+};
+var scores=0;
+var max_count=basics['size']+parseInt(basics['row']/2);
+if(canvas.width<770){
+    console.log('7700');
+    basics['op_y']=80;
+    basics['op_x']=30;
+    basics['obj_size']=canvas.width*0.65/max_count;
+}
+var put_obj=[
+    //-第一個市中心點
+    [[0,0]],    
+    [[0,0],[-1,1],[-2,2]],
+    [[0,0],[-1,1],[-2,2],[-3,3]],
+    [[0,0],[-1,1],[0,2]],    
+    [[0,0],[1,1],[2,2]],
+    [[0,0],[1,1],[2,2],[3,3]],
+    [[0,0],[1,1],[0,2]],
+    [[0,0],[2,0],[4,0]],
+    [[0,0],[2,0],[4,0],[6,0]],
+    [[0,0],[-1,1],[1,1]],
+    [[0,0],[2,0],[1,1]], 
+    [[0,0],[2,0],[1,1],[3,1]],
+    [[0,0],[2,0],[1,1],[-1,1]], 
+    [[0,0],[2,0],[-1,1]],
+    [[0,0],[2,0],[3,1]],
+    [[0,0],[1,1],[3,1]],
+    [[0,0],[-1,1],[-3,1]],
+];
+var puts=[];
+var can_move=false;
+var can_put=false;
+var put_select_0=-1;//--底層3個選項
+var put_select_1=-1;//--底層3個選項
+var put_select_2=-1;//--底層3個選項
+var now_kind=-1;
+var OBJS=function(x,y,stage,rows,counts,counts2){
+    //this.pos_ctn=ctn;//--珠子排序位
+    this.x=x;
+    this.y=y;
+    this.stage=stage;//--地板狀態 0-普通空地  1-預想放置  2.已放置
+    this.row=rows;
+    this.count=counts;
+    this.count2=counts2;//-左上右下排
+}
+var Put_OBJS=function(x,y,stage,rows,counts){
+    this.stage=stage;//--地板狀態 0-普通空地  1-主角們在上面  
+    this.x=x;
+    this.y=y;
+    this.row=rows;
+    this.count=counts;//-右上左下排    
+}
+var Controlls=function(){
+    this.planes=[];    
+    for(var i=0;i<basics['row'];i++){        
+        var nb=parseInt(basics['row']/2)-i;
+        var spc=0;
+        if(nb>0){//--開頭兼具
+            spc=basics['obj_size']/2*(nb);
+        }else if(nb<0){//--開頭兼具
+            spc=basics['obj_size']/2*(i-parseInt(basics['row']/2));
+        }
+        if(i>parseInt(basics['row']/2)){//--下半部
+            var s=parseInt(basics['row']/2)-i+parseInt(basics['row']/2);
+            var ss=parseInt(basics['row']/2)-s;//-過半後 第幾個
+            console.log(i+":"+ss);            
+            for(var a=0;a<basics['size']+s;a++){
+                var x=basics['obj_size']*(a+1)*1.1+basics['op_x'];
+                var y=basics['obj_size']*(i+1)*1.1+basics['op_y'];
+                ctx.fillStyle = '#82c4f5';
+                ctx.beginPath();
+                ctx.arc(x+spc, y, basics['obj_size']/2, 0, 2 * Math.PI);
+                ctx.fill();
+                this.planes.push(new OBJS(x+spc,y,0,i,a+ss,a));//--a+ss : 空白算格子
+            }
+        }else{//--上半部
+            for(var a=0;a<basics['size']+i;a++){
+                var ss=parseInt(basics['row']/2)-i;//-過半前 第幾個
+                var x=basics['obj_size']*(a+1)*1.1+basics['op_x'];
+                var y=basics['obj_size']*(i+1)*1.1+basics['op_y']; 
+                ctx.fillStyle = '#82c4f5';
+                ctx.beginPath();
+                ctx.arc(x+spc, y, basics['obj_size']/2, 0, 2 * Math.PI);
+                ctx.fill();
+                this.planes.push(new OBJS(x+spc,y,0,i,a,ss+a));//--a+ss : 空白算格子
+            }
+        }        
+    }//-for i end
+    //console.log(this.planes);
+}
+Controlls.prototype.update = function() {
+        //console.log(this.planes);
+            for(var i=0;i<this.planes.length;i++){//--重新渲染            
+                var xx=this.planes[i].x;
+                var yy=this.planes[i].y;                                    
+                switch(this.planes[i].stage){
+                    case 0:
+                    ctx.fillStyle = '#82c4f5';
+                    break;
+                    case 1:
+                    ctx.fillStyle = '#666';
+                    break;
+                    case 2:
+                    ctx.fillStyle = '#000';
+                    break;
+                }
+                ctx.beginPath();
+                //ctx.fillRect(xx, yy,basics['obj_size'], basics['obj_size']);        
+                ctx.arc(xx,yy, basics['obj_size']/2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            ctx.font = "30px Arial";
+            ctx.strokeText("Score:"+scores, 30, 30);           
+}
+
+function changes(){//-換一個新的 放置板塊
+    puts=[];
+    can_move=false;
+    can_put=false;
+    Create_puts(-1);
+}
+function Create_puts(s){    
+    var maxs=put_obj.length;    
+    var rd=parseInt(Math.random()*maxs);
+    if(s!=-1)rd=s;
+    now_kind=rd;  
+    var ORY=canvas.height-basics['obj_size']*4-basics['op_y'];
+    var ORX=canvas.width/2-basics['obj_size'];
+    for(var i=0;i<put_obj[rd].length;i++){
+        if(i==0)puts.push(new Put_OBJS(ORX,ORY,0,0,0));
+        else{            
+            var xx=puts[0].x;
+            var yy=puts[0].y;
+            xx=xx+put_obj[rd][i][0]*basics['obj_size']*1.1/2;
+            yy=yy+put_obj[rd][i][1]*basics['obj_size']*1.1;
+            puts.push(new Put_OBJS(xx,yy,0,0,0));
+        }
+    }
+}
+function save(s){
+    var nb=-1;
+    var out_put=false;
+    switch(s){
+        case 1:
+        nb=put_select_0;
+        if(put_select_0==-1)put_select_0=now_kind;
+        else{put_select_0=-1;}
+        break;
+        case 2:
+        nb=put_select_1;
+        if(put_select_1==-1)put_select_1=now_kind;
+        else{put_select_1=-1;}
+        break;
+        case 3:
+        nb=put_select_2;
+        if(put_select_2==-1)put_select_2=now_kind;
+        else{put_select_2=-1;}
+        break;
+    }
+    if(nb!=-1){//--載入
+        now_kind=nb;
+    }
+    puts=[];
+    can_move=false;
+    can_put=false;
+    Create_puts(nb);        
+}
+function udpate_puts(){//--繪製 移動放置物件 & 底下3個
+    for(var i=0;i<puts.length;i++){
+        var xx=puts[i].x;
+        var yy=puts[i].y; 
+        switch(puts[i].stage){
+            case 0:
+            ctx.fillStyle = '#000';
+            break;
+            case 1:
+            ctx.fillStyle = '#009393';
+            break;
+        }        
+        ctx.beginPath();            
+        ctx.arc(xx,yy, basics['obj_size']/2, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+}
+function go_putin(arr){//--放置    
+    for(var i=0;i<arr.length;i++){cc.planes[arr[i]].stage=2;}
+    puts=[];
+    can_move=false;
+    can_put=false;
+    Create_puts(-1);
+}
+function Judge_collide(){//-判斷移動 預設放置位置
+        var isIn=[];
+        for(var a=0;a<cc.planes.length;a++){   
+            for(var i=0;i<puts.length;i++){
+                var p_x=puts[i].x;
+                var p_y=puts[i].y;                
+                var xx=cc.planes[a].x;
+                var yy=cc.planes[a].y;                
+                var aa=p_x-xx;
+                var bb=p_y-yy;
+                var c=Math.sqrt(aa*aa+bb*bb);
+                if(cc.planes[a].stage!=2)cc.planes[a].stage=0;
+                if(c<=basics['obj_size']/2){//--在範圍內
+                    if(cc.planes[a].stage!=2){
+                        //cc.planes[a].stage=1;
+                        isIn.push(a);
+                        puts[i].stage=1;
+                        break;               
+                    }                
+                }
+            }                
+        }
+        for(var z=0;z<isIn.length;z++){
+            if(cc.planes[isIn[z]].stage!=2)cc.planes[isIn[z]].stage=1;
+        }
+        if(puts.length==isIn.length){//--如果 可以放置
+            for(var i=0;i<puts.length;i++){puts[i].stage=1;}
+            return isIn;
+        }
+        else{//-不能放置
+            for(var i=0;i<puts.length;i++){puts[i].stage=0;}
+            return false;
+        }
+}
+function judge_diss(){//-消除
+    var diss_arr_all=[];     
+    var combos=0; 
+    for(var s=0;s<basics['row'];s++){//--同一列 判斷消失
+        var arrs=[];
+        var diss=true;
+        for(var i=0;i<cc.planes.length;i++){//--抓同一橫排 出來                           
+            if(cc.planes[i].row==s){arrs.push(cc.planes[i]);}
+        }        
+        for(var a=0;a<arrs.length;a++){//--分類好的橫排
+            if(arrs[a].stage!=2){diss=false;break;}        
+        }        
+        if(diss){
+            for(var a=0;a<arrs.length;a++){//--改回空直                
+                diss_arr_all.push(arrs[a]);
+            }
+            combos++;  
+        }
+    }
+    
+    for(var s=0;s<basics['size']+parseInt(basics['row']/2);s++){//--同一縱 右上左下
+        var arrs=[];
+        var diss=true;
+        for(var i=0;i<cc.planes.length;i++){
+            if(cc.planes[i].count==s){arrs.push(cc.planes[i]);}
+        }        
+        for(var a=0;a<arrs.length;a++){//--分類好的橫排
+            if(arrs[a].stage!=2){diss=false;break;}        
+        }        
+        if(diss){
+            for(var a=0;a<arrs.length;a++){//--改回空直
+                diss_arr_all.push(arrs[a]);
+            }
+            combos++;
+        }
+    }
+
+    for(var s=0;s<basics['size']+parseInt(basics['row']/2);s++){//--同一縱 左上右下
+        var arrs=[];
+        var diss=true;
+        for(var i=0;i<cc.planes.length;i++){
+            if(cc.planes[i].count2==s){arrs.push(cc.planes[i]);}
+        }        
+        for(var a=0;a<arrs.length;a++){//--分類好的橫排
+            if(arrs[a].stage!=2){diss=false;break;}        
+        }
+        if(diss){
+            for(var a=0;a<arrs.length;a++){//--改回空直
+                diss_arr_all.push(arrs[a]);
+            }   
+            combos++;
+        }
+    }
+
+    //--消除
+    for(var q=0;q<diss_arr_all.length;q++){//--改回空直
+        diss_arr_all[q].stage=0;
+    }
+    diss_arr_all=merge(diss_arr_all);    
+    scores=scores+diss_arr_all.length*combos;
+}
+function merge(arr){
+    var put=[];
+//    var many=[];
+    for(var i=0;i<arr.length;i++){
+        var has=false;
+        for(var s=0;s<arr.length;s++){            
+            if(s!=i&&arr[i]==arr[s]){
+                if(put.includes(arr[i])==false)put.push(arr[i]);
+                has=true;
+                break;
+            }
+        }
+        if(has==false)put.push(arr[i]);
+    }
+    return put;
+}
+function shuffle(arr){
+    var j,temp;
+    for (var i = arr.length - 1; i > 0; i--) {
+        j = Math.floor(Math.random() * (i + 1));
+        temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+    return arr;
+};
+canvas.onmousedown = function(event){//--選擇 珠子    
+        var MX=event.clientX;
+        var MY=event.clientY;        
+        for(var i=0;i<puts.length;i++){            
+            var x=puts[i].x;
+            var y=puts[i].y;        
+            var a=MX-x;
+            var b=MY-y;
+            var c=Math.sqrt(a*a+b*b);            
+            if(c<=basics['obj_size']){//--在範圍內
+                can_move=true;                                              
+            }            
+        }
+};
+canvas.onmouseup = function(event){//--結束轉朱    
+    can_move=false;    
+    can_put=Judge_collide();         
+    //if(can_put!=false){
+    if(can_put.length!=undefined){
+        go_putin(can_put);        
+    }
+    judge_diss();
+}
+canvas.onmousemove = function(event){//--轉朱移動
+    var MX=event.clientX;
+    var MY=event.clientY;
+    //console.log(event.movementX);
+    //console.log(event.movementY);
+    if(can_move){
+        for(var i=0;i<puts.length;i++){            
+            puts[i].x=puts[i].x+event.movementX;
+            puts[i].y=puts[i].y+event.movementY;
+        }
+        can_put=Judge_collide(); 
+    }   
+}
+/*Mobile*/
+var tch_ox=0;
+var tch_oy=0;
+canvas.ontouchstart = function(event){    
+        var MX=event['targetTouches'][0]['clientX'];
+        var MY=event['targetTouches'][0]['clientY'];
+        tch_ox=MX;      
+        tch_oy=MY;      
+        for(var i=0;i<puts.length;i++){            
+            var x=puts[i].x;
+            var y=puts[i].y;        
+            var a=MX-x;
+            var b=MY-y;
+            var c=Math.sqrt(a*a+b*b);            
+            if(c<=basics['obj_size']){//--在範圍內
+                can_move=true;                                              
+            }            
+        }
+};
+canvas.ontouchend = function(event){
+    can_move=false;    
+    can_put=Judge_collide();         
+    //if(can_put!=false){
+    if(can_put.length!=undefined){
+        go_putin(can_put);        
+    }
+    judge_diss();
+}
+canvas.ontouchmove = function(event){
+    var MX=event['targetTouches'][0]['clientX'];
+    var MY=event['targetTouches'][0]['clientY'];
+    var MMX=MX-tch_ox;      
+    var MMY=MY-tch_oy;  
+    if(can_move){
+        for(var i=0;i<puts.length;i++){            
+            puts[i].x=puts[i].x+MMX;
+            puts[i].y=puts[i].y+MMY;
+        }
+        can_put=Judge_collide(); 
+        tch_ox=MX;
+        tch_oy=MY;
+    }   
+}
+/*Mobile*/
+function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);        
+        cc.update();
+        udpate_puts();        
+        requestAnimFrame(loop);
+}
+var cc=new Controlls;
+Create_puts(-1);
+loop();
+    </script>
+</body>
+</html>
